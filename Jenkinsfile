@@ -4,14 +4,23 @@ pipeline {
     agent {
         docker {
             image 'python:3.7'
+            args '--network ci'
         }
+    }
+
+    environment {
+        ORG_NAME = "deors"
+        APP_NAME = "deors-demos-python-pipeline"
+        APP_VERSION = "0.0.1"
+        APP_CONTEXT_ROOT = "/"
+        TEST_CONTAINER_NAME = "ci-${APP_NAME}-${BUILD_NUMBER}"
+        DOCKER_HUB = credentials("${ORG_NAME}-docker-hub")
     }
 
     stages {
         stage('Environment preparation') {
             steps {
                 echo "-=- preparing project environment -=-"
-                // Python dependencies
                 sh "pip install -r requirements.txt"
             }
         }
@@ -32,8 +41,7 @@ pipeline {
         stage('Mutation tests') {
             steps {
                 echo "-=- execute mutation tests -=-"
-                // initialize mutation testing session
-                sh "cosmic-ray init config.yml jenkins_session && cosmic-ray --verbose exec jenkins_session && cosmic-ray dump jenkins_session | cr-report"    
+                sh "cosmic-ray init config.yml jenkins_session && cosmic-ray --verbose exec jenkins_session && cosmic-ray dump jenkins_session | cr-report"
             }
         }
 
@@ -47,14 +55,14 @@ pipeline {
         stage('Build Docker image') {
             steps {
                 echo "-=- build Docker image -=-"
-                sh "docker build -t restalion/python-jenkins-pipeline:0.1 ."
+                sh "docker build -t ${ORG_NAME}/${APP_NAME}:${APP_VERSION} -t ${ORG_NAME}/${APP_NAME}:latest ."
             }
         }
 
         stage('Run Docker image') {
             steps {
                 echo "-=- run Docker image -=-"
-                sh "docker run --name python-jenkins-pipeline --detach --rm --network ci -p 5001:5000 restalion/python-jenkins-pipeline:0.1"
+                sh "docker run --name ${TEST_CONTAINER_NAME} --detach --rm --network ci --expose 5000 ${ORG_NAME}/${APP_NAME}:latest"
             }
         }
 
@@ -68,7 +76,7 @@ pipeline {
         stage('Performance tests') {
             steps {
                 echo "-=- execute performance tests -=-"
-                sh "locust -f ./perf_test/locustfile.py --no-web -c 1000 -r 100 --run-time 1m -H http://172.18.0.3:5001"
+                sh "locust -f ./perf_test/locustfile.py --no-web -c 1000 -r 100 --run-time 1m -H http://${TEST_CONTAINER_NAME}:5000/${APP_CONTEXT_ROOT}"
             }
         }
 
@@ -89,11 +97,10 @@ pipeline {
         stage('Push Docker image') {
             steps {
                 echo "-=- push Docker image -=-"
-                withDockerRegistry([ credentialsId: "werdar-wedartg-uiny67-adsuja0-12njkn3", url: "" ]) {
-                    sh "docker push restalion/python-jenkins-pipeline:0.1"
+                withDockerRegistry([ credentialsId: "${ORG_NAME}-docker-hub", url: "" ]) {
+                    sh "docker push ${ORG_NAME}/${APP_NAME}:${APP_VERSION}"
+                    sh "docker tag ${ORG_NAME}/${APP_NAME}:${APP_VERSION} ${ORG_NAME}/${APP_NAME}:latest"
                 }
-                
-                //sh "mvn docker:push"
             }
         }
     }
@@ -101,7 +108,7 @@ pipeline {
     post {
         always {
             echo "-=- remove deployment -=-"
-            sh "docker stop python-jenkins-pipeline"
+            sh "docker stop ${TEST_CONTAINER_NAME}"
         }
     }
 }
