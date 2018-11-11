@@ -1,0 +1,2 @@
+#!/bin/bash
+docker exec -it ci-python-jenkins-pipeline /bin/bash

@@ -1,0 +1,6 @@
+#!/bin/bash
+docker run --name ci-python-jenkins-pipeline \
+  --detach --rm \
+  --network ci \
+  --publish 55000:5000 \
+  deors/python-jenkins-pipeline:latest
