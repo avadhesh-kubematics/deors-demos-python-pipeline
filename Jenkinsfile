@@ -41,7 +41,7 @@ pipeline {
         stage('Mutation tests') {
             steps {
                 echo "-=- execute mutation tests -=-"
-                sh "cosmic-ray init config.toml jenkins_session && cosmic-ray exec jenkins_session && cr-report jenkins_session.sqlite"
+                sh "cosmic-ray init config.toml jenkins_session && cosmic-ray exec jenkins_session && cr-report jenkins_session"
             }
         }
 
